@@ -18,4 +18,20 @@ This project combines weakly-supervised segmentation of glioblastoma tumor regio
 - Multiple imputation for missing segmentation data
 - Test against real-world clinical EMR if available
 
+- import numpy as np
+import matplotlib.pyplot as plt
+
+# Simulate a binary mask as segmentation output
+seg_mask = np.zeros((128, 128))
+seg_mask[40:90, 50:100] = 1
+
+# Save segmentation mask
+np.save("data/mock_segmentation.npy", seg_mask)
+
+# visualize
+plt.imshow(seg_mask, cmap="gray")
+plt.title("Mock Tumor Mask")
+plt.show()
+
+
 
