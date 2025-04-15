@@ -1,0 +1,9 @@
+import os
+import nibabel as nib
+import numpy as np
+
+def load_segmentation_mask(patient_path):
+    seg_path = os.path.join(patient_path, os.path.basename(patient_path) + "_seg.nii.gz")
+    seg_img = nib.load(seg_path)
+    seg_data = seg_img.get_fdata()  # shape: (240, 240, 155)
+    return seg_data.astype(np.uint8)
