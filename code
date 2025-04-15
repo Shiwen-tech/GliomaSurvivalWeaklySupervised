@@ -1,9 +1,43 @@
-import os
-import nibabel as nib
+iimport os
+import pandas as pd
 import numpy as np
+import nibabel as nib
 
-def load_segmentation_mask(patient_path):
-    seg_path = os.path.join(patient_path, os.path.basename(patient_path) + "_seg.nii.gz")
-    seg_img = nib.load(seg_path)
-    seg_data = seg_img.get_fdata()  # shape: (240, 240, 155)
-    return seg_data.astype(np.uint8)
+data_dir = "brats_data"
+survival_csv = "data/survival.csv"
+output_csv = "data/survival_with_score.csv"
+
+
+df = pd.read_csv(survival_csv)
+
+# Compute tumor volume proportion from segmentation mask
+def compute_tumor_volume(mask):
+    return np.sum(mask > 0) / np.prod(mask.shape)
+
+# Build path to each segmentation file
+def get_seg_path(patient_id):
+    return os.path.join(data_dir, patient_id, f"{patient_id}_seg.nii.gz")
+
+# Iterate through patients and compute segmentation scores
+seg_scores = []
+for _, row in df.iterrows():
+    pid = row["patient_id"]
+    seg_path = get_seg_path(pid)
+    if os.path.exists(seg_path):
+        mask = nib.load(seg_path).get_fdata()
+        score = compute_tumor_volume(mask)
+    else:
+        print(f"Warning: Missing file for {pid}")
+        score = np.nan
+    seg_scores.append(score)
+
+# Add segmentation score to the dataframe
+df["seg_score"] = seg_scores
+# Save the updated dataset
+df.to_csv(output_csv, index=False)
+
+print(f"Completed! Segmentation scores saved to {output_csv}")
+
+df.to_csv(output_csv, index=False)
+print(f" Saved updated file to: {output_csv}")
+
