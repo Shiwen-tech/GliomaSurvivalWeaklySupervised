@@ -1,43 +1,43 @@
-iimport os
-import pandas as pd
+import os
 import numpy as np
 import nibabel as nib
-
-data_dir = "brats_data"
-survival_csv = "data/survival.csv"
-output_csv = "data/survival_with_score.csv"
+import matplotlib.pyplot as plt
 
 
-df = pd.read_csv(survival_csv)
 
-# Compute tumor volume proportion from segmentation mask
-def compute_tumor_volume(mask):
-    return np.sum(mask > 0) / np.prod(mask.shape)
+##Function that creates num_samples fake MRI volumes ( Each volume has size 64x64x64 (small cube))
+def simulate_mri(volume_size=(64, 64, 64), num_samples=10):
+    """Simulate small 3D MRI volumes with simple spherical tumors."""
+    data = []
+    for i in range(num_samples):##I Initialize a 3D volume with Gaussian noise (mean=0, std=0.1)
 
-# Build path to each segmentation file
-def get_seg_path(patient_id):
-    return os.path.join(data_dir, patient_id, f"{patient_id}_seg.nii.gz")
+This acts like natural MRI background noise.
+        volume = np.random.normal(0, 0.1, volume_size)
+        ##Randomly pick a center and radius;Build a spherical region inside the volume; Inside the sphere, increase the intensity (add a bright spot) → simulates a tumor.center = np.random.randint(20, 44, size=3)
+        radius = np.random.randint(5, 10)
+        X, Y, Z = np.meshgrid(
+            np.arange(volume_size[0]),
+            np.arange(volume_size[1]),
+            np.arange(volume_size[2]),
+            indexing="ij"
+        )
+        tumor = (X - center[0])**2 + (Y - center[1])**2 + (Z - center[2])**2 < radius**2
+        volume[tumor] += np.random.uniform(0.5, 1.0)
+        filename = os.path.join(DATA_DIR, f"simulated_mri_{i}.nii.gz")
+        nib.save(nib.Nifti1Image(volume, affine=np.eye(4)), filename)
+        data.append(filename)
+    return data
 
-# Iterate through patients and compute segmentation scores
-seg_scores = []
-for _, row in df.iterrows():
-    pid = row["patient_id"]
-    seg_path = get_seg_path(pid)
-    if os.path.exists(seg_path):
-        mask = nib.load(seg_path).get_fdata()
-        score = compute_tumor_volume(mask)
-    else:
-        print(f"Warning: Missing file for {pid}")
-        score = np.nan
-    seg_scores.append(score)
+def load_mri(file_path):
+    """Load a 3D MRI volume."""
+    img = nib.load(file_path)
+    return img.get_fdata()
 
-# Add segmentation score to the dataframe
-df["seg_score"] = seg_scores
-# Save the updated dataset
-df.to_csv(output_csv, index=False)
-
-print(f"Completed! Segmentation scores saved to {output_csv}")
-
-df.to_csv(output_csv, index=False)
-print(f" Saved updated file to: {output_csv}")
-
+if __name__ == "__main__":
+    generated_files = simulate_mri()
+    print(f"Generated {len(generated_files)} MRI volumes.")
+    sample = load_mri(generated_files[0])
+    plt.imshow(sample[:, :, sample.shape[2]//2], cmap='gray')
+    plt.title("Middle Slice of Simulated MRI")
+    plt.axis('off')
+    plt.show()
