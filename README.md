@@ -1,23 +1,26 @@
-# Glioblastoma Semi-Supervised Segmentation and Survival Prediction
+# Glioblastoma Semi-Supervised Survival - Simulated
 
-This project explores semi-supervised learning for glioblastoma (GBM) MRI segmentation under weak labeling conditions, and extends to survival modeling based on extracted radiomics features.
-
-Due to the scarcity of fully-annotated BraTS data, we emulate a weak labeling setting and develop a prototype pipeline using PyTorch and PyRadiomics. This project aims to bridge weakly-supervised imaging tasks with downstream clinical outcome modeling.
+This project simulates small MRI volumes with synthetic tumors to explore semi-supervised learning and survival modeling in glioblastoma.
 
 ## Project Structure
-- `data/`: Simulated small-scale 3D MRI data.
-- `scripts/`: Code for data preparation, segmentation, feature extraction, and survival analysis.
-- `results/`: Saved outputs including segmentation visualizations and survival curves.
+- **data/**: Simulated MRI volumes and labels
+- **scripts/**: Data generation and modeling scripts
+- **results/**: Segmentation outputs and survival plots
 
-## Main Steps
-1. Simulate and load small MRI datasets.
-2. Generate weak segmentation annotations.
-3. Train a semi-supervised segmentation model.
-4. Extract radiomics features.
-5. Perform Cox regression for survival prediction.
-6. Assess robustness via missing data simulation and imputation.
-7. Summarize findings and visualizations.
+## Goals
+- Explore semi-supervised segmentation with weak labels
+- Evaluate survival modeling robustness
 
-## Requirements
-- Python 3.8+
-- Key libraries: PyTorch, SimpleITK, PyRadiomics, scikit-learn, matplotlib
+
+# Glioblastoma Semi-Supervised Survival - BraTS
+
+This project uses real MRI data from the BraTS 2020 dataset to develop semi-supervised segmentation models and survival analysis pipelines.
+
+## Project Structure
+- **data/BraTS2020/**: MRI volumes and segmentation labels
+- **scripts/**: Preprocessing, training, and analysis scripts
+- **results/**: Segmentation and survival analysis outputs
+
+## Goals
+- Build a semi-supervised segmentation pipeline
+- Perform radiomics-based survival analysis
