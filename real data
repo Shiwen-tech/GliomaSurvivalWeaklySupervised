@@ -171,3 +171,61 @@ if __name__ == "__main__":
     os.makedirs('../results/', exist_ok=True)
     torch.save(model.state_dict(), '../results/simple_unet.pth')
     print("Model saved to ../results/simple_unet.pth")
+
+#### Step 4 - Radiomics Feature Extraction
+#We apply PyRadiomics to extract intensity, shape, and texture features from the segmented tumor regions.
+#Features are saved into `results/radiomics_features.csv`.
+
+# scripts/04_extract_radiomics.py
+
+import os
+import SimpleITK as sitk
+import radiomics
+from radiomics import featureextractor
+import pandas as pd
+
+
+
+# Radiomics settings
+params = {
+    'binWidth': 25,
+    'resampledPixelSpacing': None,
+    'interpolator': 'sitkBSpline',
+    'verbose': True
+}
+
+# Initialize extractor
+extractor = featureextractor.RadiomicsFeatureExtractor(**params)
+
+# Prepare storage
+feature_list = []
+
+# Loop over all volumes
+for mri_filename in os.listdir(MRI_DIR):
+    if not mri_filename.endswith('.nii.gz'):
+        continue
+    
+    mri_path = os.path.join(MRI_DIR, mri_filename)
+    label_path = os.path.join(LABEL_DIR, mri_filename.replace('.nii.gz', '_weak_label.nii.gz'))
+    
+    if not os.path.exists(label_path):
+        print(f"Warning: Label for {mri_filename} not found. Skipping.")
+        continue
+
+    # Load images
+    image = sitk.ReadImage(mri_path)
+    label = sitk.ReadImage(label_path)
+
+    # Extract features
+    features = extractor.execute(image, label)
+    
+    # Clean up feature dictionary
+    cleaned_features = {k: v for k, v in features.items() if not k.startswith('diagnostics')}
+    cleaned_features['case_id'] = mri_filename
+    feature_list.append(cleaned_features)
+
+# Save to CSV
+df = pd.DataFrame(feature_list)
+df.to_csv(FEATURE_SAVE_PATH, index=False)
+print(f"Saved radiomics features to {FEATURE_SAVE_PATH}")
+
