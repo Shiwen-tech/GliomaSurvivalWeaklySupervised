@@ -1,7 +1,6 @@
 import os
 import nibabel as nib
 import matplotlib.pyplot as plt
-
 def load_mri(/Users/shiwenyu/Downloads/HW3_material/Task1-FamSeq):
     """Load a 3D MRI volume."""
     img = nib.load(file_path)
@@ -19,3 +18,156 @@ if __name__ == "__main__":
         plt.title(f"Middle Slice - {cases[0]}")
         plt.axis('off')
         plt.show()
+
+##label generation
+def generate_dummy_label(mri_volume, high_percentile=99):
+    """Create dummy tumor mask by high intensity threshold."""
+    threshold = np.percentile(mri_volume, high_percentile)
+    dummy_mask = (mri_volume > threshold).astype(np.uint8)
+    return dummy_mask
+
+if __name__ == "__main__":
+    cases = [f for f in os.listdir(DATA_DIR) if f.endswith('.nii.gz') and 'flair' in f.lower()]
+    
+    if not cases:
+        print("No FLAIR images found!")
+    else:
+        for case in cases:
+            img_path = os.path.join(DATA_DIR, case)
+            volume = nib.load(img_path).get_fdata()
+            
+            dummy_mask = generate_dummy_label(volume)
+            
+            save_path = os.path.join(LABEL_DIR, case.replace('.nii.gz', '_dummy_label.nii.gz'))
+            nib.save(nib.Nifti1Image(dummy_mask, affine=np.eye(4)), save_path)
+
+        print(f"Generated dummy labels for {len(cases)} FLAIR images.")
+
+
+
+####built a lightweight 3D U-Net from scratch to perform tumor segmentation on 3D MRI volumes. It uses standard double convolution blocks, downsampling, upsampling with skip connections, and outputs voxel-level predictions with sigmoid activation
+import torch
+import torch.nn as nn
+
+class DoubleConv(nn.Module):
+    """Two consecutive convolutional layers with ReLU activation."""
+    def __init__(self, in_channels, out_channels):
+        super(DoubleConv, self).__init__()
+        self.double_conv = nn.Sequential(
+            nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True)
+        )
+
+    def forward(self, x):
+        return self.double_conv(x)
+
+class SimpleUNet(nn.Module):
+    """A small UNet for 3D segmentation."""
+    def __init__(self, in_channels=1, out_channels=1):
+        super(SimpleUNet, self).__init__()
+        
+        self.enc1 = DoubleConv(in_channels, 16)
+        self.pool1 = nn.MaxPool3d(2)
+        self.enc2 = DoubleConv(16, 32)
+        self.pool2 = nn.MaxPool3d(2)
+
+        self.bottleneck = DoubleConv(32, 64)
+
+        self.up2 = nn.ConvTranspose3d(64, 32, kernel_size=2, stride=2)
+        self.dec2 = DoubleConv(64, 32)
+        self.up1 = nn.ConvTranspose3d(32, 16, kernel_size=2, stride=2)
+        self.dec1 = DoubleConv(32, 16)
+
+        self.output_conv = nn.Conv3d(16, out_channels, kernel_size=1)
+
+    def forward(self, x):
+        enc1 = self.enc1(x)
+        enc2 = self.enc2(self.pool1(enc1))
+        bottleneck = self.bottleneck(self.pool2(enc2))
+        dec2 = self.up2(bottleneck)
+        dec2 = self.dec2(torch.cat([dec2, enc2], dim=1))
+        dec1 = self.up1(dec2)
+        dec1 = self.dec1(torch.cat([dec1, enc1], dim=1))
+        return torch.sigmoid(self.output_conv(dec1))
+
+##Train using simulated MRI and weak labels
+
+# scripts/03_semi_supervised_segmentation.py
+
+import os
+import torch
+import nibabel as nib
+import numpy as np
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import Dataset, DataLoader
+import matplotlib.pyplot as plt
+
+from models.simple_unet import SimpleUNet
+
+DATA_DIR = '../data/simulated_mri/'
+LABEL_DIR = '../data/weak_labels/'
+
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+# Custom Dataset
+class MRIDataset(Dataset):
+    def __init__(self, mri_dir, label_dir):
+        self.mri_files = [f for f in os.listdir(mri_dir) if f.endswith('.nii.gz')]
+        self.mri_dir = mri_dir
+        self.label_dir = label_dir
+
+    def __len__(self):
+        return len(self.mri_files)
+
+    def __getitem__(self, idx):
+        mri_path = os.path.join(self.mri_dir, self.mri_files[idx])
+        label_path = os.path.join(self.label_dir, self.mri_files[idx].replace('.nii.gz', '_weak_label.nii.gz'))
+        
+        mri = nib.load(mri_path).get_fdata()
+        label = nib.load(label_path).get_fdata()
+        
+        mri = torch.from_numpy(mri).float().unsqueeze(0)  # (C, D, H, W)
+        label = torch.from_numpy(label).float().unsqueeze(0)
+        
+        return mri, label
+
+# Loss Function
+def dice_loss(pred, target, smooth=1e-5):
+    pred = pred.view(-1)
+    target = target.view(-1)
+    intersection = (pred * target).sum()
+    return 1 - (2. * intersection + smooth) / (pred.sum() + target.sum() + smooth)
+
+# Main training script
+if __name__ == "__main__":
+    dataset = MRIDataset(DATA_DIR, LABEL_DIR)
+    loader = DataLoader(dataset, batch_size=2, shuffle=True)
+
+    model = SimpleUNet().to(DEVICE)
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+
+    n_epochs = 10
+
+    for epoch in range(n_epochs):
+        model.train()
+        epoch_loss = 0.0
+        for mri, label in loader:
+            mri, label = mri.to(DEVICE), label.to(DEVICE)
+            
+            optimizer.zero_grad()
+            output = model(mri)
+            loss = dice_loss(output, label)
+            loss.backward()
+            optimizer.step()
+
+            epoch_loss += loss.item()
+
+        print(f"Epoch {epoch+1}/{n_epochs}, Loss: {epoch_loss/len(loader):.4f}")
+
+   
+    os.makedirs('../results/', exist_ok=True)
+    torch.save(model.state_dict(), '../results/simple_unet.pth')
+    print("Model saved to ../results/simple_unet.pth")
