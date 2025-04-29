@@ -1,0 +1,21 @@
+import os
+import nibabel as nib
+import matplotlib.pyplot as plt
+
+def load_mri(/Users/shiwenyu/Downloads/HW3_material/Task1-FamSeq):
+    """Load a 3D MRI volume."""
+    img = nib.load(file_path)
+    return img.get_fdata()
+
+if __name__ == "__main__":
+    # List available cases
+    cases = [f for f in os.listdir(DATA_DIR) if f.endswith('.nii.gz') and 'flair' in f.lower()]
+    if not cases:
+        print("No FLAIR images found. Please check your data path!")
+    else:
+        sample_file = os.path.join(DATA_DIR, cases[0])
+        sample_volume = load_mri(sample_file)
+        plt.imshow(sample_volume[:, :, sample_volume.shape[2]//2], cmap='gray')
+        plt.title(f"Middle Slice - {cases[0]}")
+        plt.axis('off')
+        plt.show()
